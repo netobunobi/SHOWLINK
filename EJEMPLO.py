@@ -28,6 +28,13 @@ def hex_a_rgba(hex_color):
     return (c.redF(), c.greenF(), c.blueF(), 1.0)
 
 
+
+#prueba de este cambio
+def inutil():
+    pass
+
+
+
 class VisorSandbox(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
