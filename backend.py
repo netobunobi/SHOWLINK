@@ -141,41 +141,50 @@ def getTypeLink(element1, element2):
 
 
 #funcion para saber que tipo de material es (solo en enlaces covalentes)
+# funcion para saber que tipo de material es (solo en enlaces covalentes)
 def getMaterialType(element1, element2):
-    grupoE1 = element1.group_id
-    grupoE2 = element2.group_id
+    # Elementos base que realmente forman la red semiconductora (Grupo 14 clásicos)
+    BASES_SEMICONDUCTORAS = ['Si', 'Ge']
+    
+    s1, s2 = element1.symbol, element2.symbol
+    g1, g2 = element1.group_id, element2.group_id
 
-    if grupoE1 == 14 and grupoE2 == 14:
+    # 1. SEMICONDUCTOR INTRÍNSECO: Misma red pura de Si o Ge (ej. Si+Si o Ge+Ge)
+    if s1 == s2 and s1 in BASES_SEMICONDUCTORAS:
         titulo = "Semiconductor Intrínseco (Puro)"
         descripcion = (
-            "Red cristalina tetravalente sin impurezas. La conducción eléctrica depende "
+            "Red cristalina tetravalente pura sin impurezas. La conducción eléctrica depende "
             "únicamente de la excitación térmica para liberar pares electrón-hueco."
         )
         return titulo, descripcion
 
-    elif {grupoE1, grupoE2} == {14, 13}:
-        titulo = "Semiconductor Extrínseco Tipo P (Aceptor)"
-        descripcion = (
-            "Dopado con átomos trivalentes (Grupo 13). Se generan huecos libres (cargas positivas) "
-            "en la banda de valencia al faltar un electrón para completar los enlaces covalentes."
-        )
-        return titulo, descripcion
+    # 2. SEMICONDUCTORES EXTRÍNSECOS: Requiere que al menos uno sea la base (Si o Ge)
+    elif s1 in BASES_SEMICONDUCTORAS or s2 in BASES_SEMICONDUCTORAS:
+        # Base dopada con Grupo 13 (Boro, Galio, Indio, etc.) -> Tipo P
+        if {g1, g2} == {14, 13}:
+            titulo = "Semiconductor Extrínseco Tipo P (Aceptor)"
+            descripcion = (
+                "Dopado con átomos trivalentes (Grupo 13). Se generan huecos libres (cargas positivas) "
+                "en la banda de valencia al faltar un electrón para completar los enlaces covalentes."
+            )
+            return titulo, descripcion
 
-    elif {grupoE1, grupoE2} == {14, 15}:
-        titulo = "Semiconductor Extrínseco Tipo N (Donador)"
-        descripcion = (
-            "Dopado con átomos pentavalentes (Grupo 15). El quinto electrón de valencia queda libre "
-            "en la banda de conducción, facilitando el flujo eléctrico por electrones negativos."
-        )
-        return titulo, descripcion
+        # Base dopada con Grupo 15 (Fósforo, Arsénico, Antimonio, etc.) -> Tipo N
+        elif {g1, g2} == {14, 15}:
+            titulo = "Semiconductor Extrínseco Tipo N (Donador)"
+            descripcion = (
+                "Dopado con átomos pentavalentes (Grupo 15). El quinto electrón de valencia queda libre "
+                "en la banda de conducción, facilitando el flujo eléctrico por electrones negativos."
+            )
+            return titulo, descripcion
 
-    else:
-        titulo = "Enlace Covalente Estándar"
-        descripcion = (
-            "No forma una red semiconductora clásica. Los electrones están fuertemente localizados "
-            "en los enlaces, comportándose principalmente como un material aislante o molecular."
-        )
-        return titulo, descripcion
+    # 3. CUALQUIER OTRO ENLACE COVALENTE (F+F, O+O, C+O, N+H, etc.)
+    titulo = "Aislante / Covalente Molecular"
+    descripcion = (
+        "No forma una red semiconductora clásica. Los electrones están fuertemente localizados "
+        "en los enlaces compartidos y pares solitarios, comportándose como un material aislante o molecular."
+    )
+    return titulo, descripcion
 
 #funcion para obtener configuracion electronica
 def getElectronicConfiguration(elemntEntry: element):

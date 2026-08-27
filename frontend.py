@@ -79,6 +79,8 @@ class VentanaPrincipal(QMainWindow):
 
         self.molde_electron = gl.MeshData.sphere(rows=10, cols=10, radius=0.25)
 
+        self.molde_nube_hd = gl.MeshData.sphere(rows=30, cols=30, radius=1.0)
+
 
 
         # Estructuras para la animación
@@ -562,25 +564,7 @@ class VentanaPrincipal(QMainWindow):
                 input_destino.setText(simbolo)
 
 
-    def dibujarUnAtomo(self, visor, atomo, offset_x=0.0):
-        radio_orbita = 3
-        angulos_orbita = np.linspace(0, 2 * np.pi, 80)
-        puntos_orbita = np.column_stack((
-            offset_x + radio_orbita * np.cos(angulos_orbita),
-            radio_orbita * np.sin(angulos_orbita),
-            np.zeros(80)
-        ))
-
-        # Órbita
-        linea_orbita = gl.GLLinePlotItem(
-            pos=puntos_orbita,
-            color=(1, 1, 1, 1),
-            width=1.5,
-            mode='line_strip',
-            glOptions='opaque'
-        )
-        visor.addItem(linea_orbita)
-
+    def dibujarUnAtomo(self, visor, atomo, offset_x=0.0, solo_nucleo=False, electrones_forzados=None):
         # Núcleo
         color = QColor(getColor(atomo))
         colorOpengl = (color.redF(), color.greenF(), color.blueF(), 1.0)
@@ -593,10 +577,31 @@ class VentanaPrincipal(QMainWindow):
         esferaAtomo.translate(offset_x, 0.0, 0.0)
         visor.addItem(esferaAtomo)
 
-        # Electrones y Huecos
+        if solo_nucleo:
+            return
+
+        # Órbita
+        radio_orbita = 3
+        angulos_orbita = np.linspace(0, 2 * np.pi, 80)
+        puntos_orbita = np.column_stack((
+            offset_x + radio_orbita * np.cos(angulos_orbita),
+            radio_orbita * np.sin(angulos_orbita),
+            np.zeros(80)
+        ))
+
+        linea_orbita = gl.GLLinePlotItem(
+            pos=puntos_orbita,
+            color=(1, 1, 1, 1),
+            width=1.5,
+            mode='line_strip',
+            glOptions='opaque'
+        )
+        visor.addItem(linea_orbita)
+
+        # Capacidad y conteo de electrones
         capacidad = 2 if atomo.symbol in ['H', 'He'] else 8
         posiciones = np.linspace(0, 2 * np.pi, capacidad, endpoint=False)
-        valencia = getValence(atomo)
+        valencia = getValence(atomo) if electrones_forzados is None else electrones_forzados
 
         for i, theta in enumerate(posiciones):
             ex = offset_x + radio_orbita * np.cos(theta)
@@ -623,107 +628,135 @@ class VentanaPrincipal(QMainWindow):
 
     def dibujarAtomosSeparados(self, atomo1, atomo2):
         self.Visor3dA1.clear()
-        self.Visor3dA1.setCameraPosition(pos = QVector3D(0, 0, 0),elevation=90, azimuth=60)
+        self.Visor3dA1.setCameraPosition(pos=QVector3D(0, 0, 0), elevation=90, azimuth=60)
         self.Visor3dA2.clear()
-        self.Visor3dA2.setCameraPosition(pos = QVector3D(0, 0, 0), elevation=90, azimuth=30)
+        self.Visor3dA2.setCameraPosition(pos=QVector3D(0, 0, 0), elevation=90, azimuth=30)
 
         self.dibujarUnAtomo(self.Visor3dA1, atomo1, offset_x=0.0)
         self.dibujarUnAtomo(self.Visor3dA2, atomo2, offset_x=0.0)
-
 
     def actualizarMovimientoElectrones(self):
         if not self.electrones_animados:
             return
 
+        # Radios internos del elipsoide (ligeramente menores a la escala de la cápsula)
+        a, b, c = 5.0, 2.5, 2.1
         pos_n1 = np.array([-3.0, 0.0, 0.0])
         pos_n2 = np.array([3.0, 0.0, 0.0])
-        r_nucleo = 1.1
+        r_nucleo = 1.25
 
         for i, (mesh, pos, vel) in enumerate(self.electrones_animados):
-            # 1. Avanzar según su velocidad
             pos += vel
 
-            # 2. Rebote en los límites del espacio (Caja 3D)
-            if abs(pos[0]) > 4.8:
-                vel[0] *= -1
-            if abs(pos[1]) > 2.5:
-                vel[1] *= -1
-            if abs(pos[2]) > 2.5:
-                vel[2] *= -1
+            # 1. Rebote en la superficie curva del elipsoide (si se pasa del límite 1.0)
+            norma_elipse = (pos[0]/a)**2 + (pos[1]/b)**2 + (pos[2]/c)**2
+            if norma_elipse >= 1.0:
+                # Vector normal a la superficie elipsoidal en ese punto
+                normal = np.array([pos[0] / (a**2), pos[1] / (b**2), pos[2] / (c**2)])
+                normal /= np.linalg.norm(normal)
+                
+                # Reflejar el vector de velocidad hacia el interior
+                vel[:] = vel - 2 * np.dot(vel, normal) * normal
+                # Reubicarlo ligeramente adentro para no quedar atrapado en el borde
+                pos[:] = pos * 0.98
 
-            # 3. Rebote suave con los núcleos
+            # 2. Rebote suave con los núcleos metálicos
             for n_pos in (pos_n1, pos_n2):
                 dist_n = np.linalg.norm(pos - n_pos)
                 if dist_n < r_nucleo:
-                    # Normal del rebote
-                    normal = (pos - n_pos) / dist_n
-                    vel[:] = normal * np.linalg.norm(vel)
+                    normal_n = (pos - n_pos) / dist_n
+                    vel[:] = normal_n * np.linalg.norm(vel)
 
-            # 4. Aplicar la nueva posición en OpenGL
+            # 3. Mover la malla en OpenGL
             mesh.resetTransform()
             mesh.translate(pos[0], pos[1], pos[2])
 
-
-
     def dibujarEnlaceAtomos(self, elemento1, elemento2):
         self.Visor3dEnlace.clear()
-        self.Visor3dEnlace.setCameraPosition(pos = QVector3D(0, 0, 0), distance = 20, elevation=90, azimuth=90)
+        self.Visor3dEnlace.setCameraPosition(pos=QVector3D(0, 0, 0), distance=20, elevation=90, azimuth=90)
         tipoEnlace, msg = getTypeLink(elemento1, elemento2)
 
         # CASO 1: Gas noble / Sin enlace
         if tipoEnlace == 1:
+            self.timer_animacion.stop()
             self.dibujarUnAtomo(self.Visor3dEnlace, elemento1, offset_x=-3.5)
             self.dibujarUnAtomo(self.Visor3dEnlace, elemento2, offset_x=3.5)
-            
+
         # CASO 2: Enlace Metálico
         elif tipoEnlace == 2:
-            # Detener animación previa y limpiar lista
             self.timer_animacion.stop()
             self.electrones_animados.clear()
 
-            # Núcleo 1
-            color1 = QColor(getColor(elemento1))
-            color1Opengl = (color1.redF(), color1.greenF(), color1.blueF(), 1.0)
-            nucleo1 = gl.GLMeshItem(meshdata=self.molde, color=color1Opengl, shader='shaded', glOptions='opaque')
-            nucleo1.translate(-3.0, 0.0, 0.0)
-            self.Visor3dEnlace.addItem(nucleo1)
+            # Dimensiones de la cápsula
+            a_capsula, b_capsula, c_capsula = 5.3, 2.7, 2.3
 
-            # Núcleo 2
-            color2 = QColor(getColor(elemento2))
-            color2Opengl = (color2.redF(), color2.greenF(), color2.blueF(), 1.0)
-            nucleo2 = gl.GLMeshItem(meshdata=self.molde, color=color2Opengl, shader='shaded', glOptions='opaque')
-            nucleo2.translate(3.0, 0.0, 0.0)
-            self.Visor3dEnlace.addItem(nucleo2)
+            # --- A. CÁPSULA DE BRILLO SUAVE ---
+            aura_energia = gl.GLMeshItem(
+                meshdata=self.molde_nube_hd,
+                color=(0.15, 0.60, 1.0, 0.18),
+                smooth=True,
+                shader='shaded',
+                glOptions='additive'
+            )
+            aura_energia.scale(a_capsula, b_capsula, c_capsula)
+            self.Visor3dEnlace.addItem(aura_energia)
 
+            # --- B. DESTELLOS DE ENERGÍA (Filtrados 100% adentro del elipsoide) ---
+            particulas_validas = []
+            while len(particulas_validas) < 140:
+                cand = np.array([
+                    np.random.uniform(-4.9, 4.9),
+                    np.random.uniform(-2.4, 2.4),
+                    np.random.uniform(-2.0, 2.0)
+                ])
+                # Solo aceptar si está dentro de la cápsula
+                if (cand[0]/4.9)**2 + (cand[1]/2.4)**2 + (cand[2]/2.0)**2 <= 0.95:
+                    particulas_validas.append(cand)
+
+            color_polvo = np.tile([0.4, 0.9, 1.0, 0.45], (len(particulas_validas), 1))
+            destellos = gl.GLScatterPlotItem(
+                pos=np.array(particulas_validas),
+                size=3.5,
+                color=color_polvo,
+                pxMode=True,
+                glOptions='additive'
+            )
+            self.Visor3dEnlace.addItem(destellos)
+
+            # --- C. NÚCLEOS METÁLICOS ---
+            self.dibujarUnAtomo(self.Visor3dEnlace, elemento1, offset_x=-3.0, solo_nucleo=True)
+            self.dibujarUnAtomo(self.Visor3dEnlace, elemento2, offset_x=3.0, solo_nucleo=True)
+
+            # --- D. ELECTRONES INICIALES (Adentro del elipsoide y sin colisiones) ---
             total_electrones = getValence(elemento1) + getValence(elemento2)
-
             pos_nucleo1 = np.array([-3.0, 0.0, 0.0])
             pos_nucleo2 = np.array([3.0, 0.0, 0.0])
             posiciones_ocupadas = []
 
             for _ in range(total_electrones):
                 intentos = 0
-                while intentos < 100:
+                while intentos < 150:
                     intentos += 1
                     candidato = np.array([
-                        np.random.uniform(-4.5, 4.5),
+                        np.random.uniform(-4.6, 4.6),
                         np.random.uniform(-2.2, 2.2),
-                        np.random.uniform(-2.2, 2.2)
+                        np.random.uniform(-1.8, 1.8)
                     ])
 
-                    if np.linalg.norm(candidato - pos_nucleo1) < 1.3:
+                    # Validar elipsoide
+                    if (candidato[0]/4.6)**2 + (candidato[1]/2.2)**2 + (candidato[2]/1.8)**2 > 0.88:
                         continue
-                    if np.linalg.norm(candidato - pos_nucleo2) < 1.3:
+                    # Validar distancia a núcleos
+                    if np.linalg.norm(candidato - pos_nucleo1) < 1.35 or np.linalg.norm(candidato - pos_nucleo2) < 1.35:
                         continue
+                    # Validar distancia entre electrones
                     if any(np.linalg.norm(candidato - p) < 0.65 for p in posiciones_ocupadas):
                         continue
 
                     posiciones_ocupadas.append(candidato)
                     break
 
-            # Instanciar y asignar vector de velocidad suave
-            velocidad_escalar = 0.035  # Ajusta este valor para más/menos velocidad
-
+            velocidad_escalar = 0.035
             for pos in posiciones_ocupadas:
                 e_mesh = gl.GLMeshItem(
                     meshdata=self.molde_electron,
@@ -734,24 +767,278 @@ class VentanaPrincipal(QMainWindow):
                 e_mesh.translate(pos[0], pos[1], pos[2])
                 self.Visor3dEnlace.addItem(e_mesh)
 
-                # Dirección aleatoria normalizada
                 direccion = np.random.uniform(-1.0, 1.0, 3)
                 direccion /= np.linalg.norm(direccion)
                 vel = direccion * velocidad_escalar
 
                 self.electrones_animados.append((e_mesh, pos, vel))
 
-            # Iniciar el ciclo de animación a ~33 FPS (cada 30 ms)
             self.timer_animacion.start(30)
-    
-            
+
         # CASO 3: Enlace Iónico
         elif tipoEnlace == 3:
-            self.mostrarAlerta("En desarrollo", "El enlace iónico aún no está implementado.")
+            self.timer_animacion.stop()
+            self.electrones_animados.clear()
+
+            # Identificar Catión (Metal +) y Anión (No Metal -)
+            if isMetal(elemento1):
+                metal, no_metal = elemento1, elemento2
+                pos_metal, pos_no_metal = 3.5, -3.5
+            else:
+                metal, no_metal = elemento2, elemento1
+                pos_metal, pos_no_metal = -3.5, 3.5
+
+            # 1. Catión (+): Solo núcleo + Halo de carga positiva
+            self.dibujarUnAtomo(self.Visor3dEnlace, metal, offset_x=pos_metal, solo_nucleo=True)
             
+            halo_cat = gl.GLMeshItem(
+                meshdata=self.molde_nube_hd,
+                color=(1.0, 0.4, 0.2, 0.12),
+                shader='shaded',
+                glOptions='additive'
+            )
+            halo_cat.scale(2.2, 2.2, 2.2)
+            halo_cat.translate(pos_metal, 0.0, 0.0)
+            self.Visor3dEnlace.addItem(halo_cat)
+
+            # 2. Anión (-): Núcleo + Órbita llena + Halo negativo
+            cap_anion = 2 if no_metal.symbol in ['H', 'He'] else 8
+            self.dibujarUnAtomo(self.Visor3dEnlace, no_metal, offset_x=pos_no_metal, electrones_forzados=cap_anion)
+
+            halo_an = gl.GLMeshItem(
+                meshdata=self.molde_nube_hd,
+                color=(0.2, 0.6, 1.0, 0.12),
+                shader='shaded',
+                glOptions='additive'
+            )
+            halo_an.scale(3.8, 3.8, 3.8)
+            halo_an.translate(pos_no_metal, 0.0, 0.0)
+            self.Visor3dEnlace.addItem(halo_an)
+
+            # 3. Fuerza de Atracción Electrostática (Líneas de enlace limpias)
+            dir_signo = 1 if pos_metal > pos_no_metal else -1
+            x_ini = pos_no_metal + (3.0 * dir_signo)  # Arranca justo fuera del aro
+            x_fin = pos_metal - (1.5 * dir_signo)     # Termina antes de tocar el núcleo metal
+
+            puntos_x = np.linspace(x_ini, x_fin, 12)
+            segmentos = []
+            for k in range(0, len(puntos_x) - 1, 2):
+                segmentos.append([puntos_x[k], 0.0, 0.0])
+                segmentos.append([puntos_x[k+1], 0.0, 0.0])
+
+            linea_electrostatica = gl.GLLinePlotItem(
+                pos=np.array(segmentos),
+                color=(1.0, 0.2, 0.8, 0.9),
+                width=3.0,
+                mode='lines',
+                glOptions='additive'
+            )
+            self.Visor3dEnlace.addItem(linea_electrostatica)
+
+            # 4. Símbolos 3D de Carga (+ y -) flotantes
+            # Signo (+) sobre el catión
+            c_x, c_y = pos_metal, 2.6
+            pts_plus = np.array([
+                [c_x - 0.4, c_y, 0.0], [c_x + 0.4, c_y, 0.0],
+                [c_x, c_y - 0.4, 0.0], [c_x, c_y + 0.4, 0.0]
+            ])
+            signo_mas = gl.GLLinePlotItem(pos=pts_plus, color=(1.0, 0.6, 0.2, 1.0), width=3.5, mode='lines')
+            self.Visor3dEnlace.addItem(signo_mas)
+
+            # Signo (-) sobre el anión
+            a_x, a_y = pos_no_metal, 3.8
+            pts_minus = np.array([
+                [a_x - 0.4, a_y, 0.0], [a_x + 0.4, a_y, 0.0]
+            ])
+            signo_menos = gl.GLLinePlotItem(pos=pts_minus, color=(0.2, 0.8, 1.0, 1.0), width=3.5, mode='lines')
+            self.Visor3dEnlace.addItem(signo_menos)
+
+
         # CASO 4: Enlace Covalente
         elif tipoEnlace == 4:
-            self.mostrarAlerta("En desarrollo", "El enlace covalente aún no está implementado.")
+            self.timer_animacion.stop()
+            self.electrones_animados.clear()
+
+            tipoMaterial, msgMaterial = getMaterialType(elemento1, elemento2)
+
+            # =========================================================================
+            # RED CRISTALINA 3x3: INTRÍNSECO Y EXTRÍNSECOS (TIPO N / TIPO P)
+            # =========================================================================
+            if any(k in tipoMaterial for k in ["Intrínseco", "Tipo N", "Tipo P"]):
+                # Ajustar cámara para encuadrar la red 3x3
+                self.Visor3dEnlace.setCameraPosition(pos=QVector3D(0, 0, 0), distance=32, elevation=90, azimuth=90)
+
+                espaciado = 4.8  # Distancia entre nodos vecinos
+                filas = [-espaciado, 0.0, espaciado]
+                cols = [-espaciado, 0.0, espaciado]
+
+                # 1. Dibujar los 9 átomos de la red
+                for r in filas:
+                    for c in cols:
+                        es_centro = (r == 0.0 and c == 0.0)
+                        
+                        # Si es el centro y es extrínseco, va el dopante; en el resto va la base
+                        if es_centro and ("Tipo N" in tipoMaterial or "Tipo P" in tipoMaterial):
+                            elem_nodo = elemento2
+                        else:
+                            elem_nodo = elemento1
+
+                        color_n = QColor(getColor(elem_nodo))
+                        color_gl = (color_n.redF(), color_n.greenF(), color_n.blueF(), 1.0)
+                        
+                        atomo_mesh = gl.GLMeshItem(meshdata=self.molde, color=color_gl, shader='shaded', glOptions='opaque')
+                        atomo_mesh.translate(c, r, 0.0)
+                        self.Visor3dEnlace.addItem(atomo_mesh)
+
+                # 2. Líneas de enlace y pares de electrones compartidos
+                # Enlaces Horizontales
+                for r in filas:
+                    for i in range(2):
+                        x1, x2 = cols[i], cols[i+1]
+                        # Línea de enlace
+                        linea_h = gl.GLLinePlotItem(
+                            pos=np.array([[x1, r, 0.0], [x2, r, 0.0]]),
+                            color=(0.2, 0.8, 1.0, 0.5),
+                            width=2.0,
+                            mode='lines'
+                        )
+                        self.Visor3dEnlace.addItem(linea_h)
+                        
+                        # Par de electrones compartidos en el enlace horizontal
+                        xm = (x1 + x2) / 2.0
+                        for off_y in [-0.35, 0.35]:
+                            # Omitir un electrón si es el enlace del dopante Tipo P para simular el hueco
+                            if "Tipo P" in tipoMaterial and r == 0.0 and x1 == 0.0 and off_y > 0:
+                                continue
+                            e = gl.GLMeshItem(meshdata=self.molde_electron, color=(0.2, 1.0, 0.4, 1.0), shader='shaded')
+                            e.translate(xm, r + off_y, 0.0)
+                            self.Visor3dEnlace.addItem(e)
+
+                # Enlaces Verticales
+                for c in cols:
+                    for j in range(2):
+                        y1, y2 = filas[j], filas[j+1]
+                        linea_v = gl.GLLinePlotItem(
+                            pos=np.array([[c, y1, 0.0], [c, y2, 0.0]]),
+                            color=(0.2, 0.8, 1.0, 0.5),
+                            width=2.0,
+                            mode='lines'
+                        )
+                        self.Visor3dEnlace.addItem(linea_v)
+                        
+                        # Par de electrones compartidos en el enlace vertical
+                        ym = (y1 + y2) / 2.0
+                        for off_x in [-0.35, 0.35]:
+                            e = gl.GLMeshItem(meshdata=self.molde_electron, color=(0.2, 1.0, 0.4, 1.0), shader='shaded')
+                            e.translate(c + off_x, ym, 0.0)
+                            self.Visor3dEnlace.addItem(e)
+
+                # 3. Comportamientos dinámicos específicos
+
+                # TIPO N: El 5.º electrón donador queda libre y vaga por toda la red
+                if "Tipo N" in tipoMaterial:
+                    pos_e_libre = np.array([0.8, 0.8, 0.0])
+                    vel_e_libre = np.array([0.05, 0.04, 0.0])
+
+                    e_libre = gl.GLMeshItem(
+                        meshdata=self.molde_electron,
+                        color=(1.0, 0.9, 0.1, 1.0),  # Amarillo neón (electrón libre)
+                        shader='shaded',
+                        glOptions='opaque'
+                    )
+                    e_libre.translate(pos_e_libre[0], pos_e_libre[1], pos_e_libre[2])
+                    self.Visor3dEnlace.addItem(e_libre)
+                    
+                    self.electrones_animados.append((e_libre, pos_e_libre, vel_e_libre))
+                    self.timer_animacion.start(30)
+
+                # TIPO P: Se dibuja el hueco libre (rojo translúcido) en el enlace incompleto del centro
+                elif "Tipo P" in tipoMaterial:
+                    hueco = gl.GLMeshItem(
+                        meshdata=self.molde_electron,
+                        color=(0.95, 0.2, 0.2, 0.75),  # Rojo neón translúcido
+                        shader='shaded',
+                        glOptions='translucent'
+                    )
+                    hueco.translate(espaciado / 2.0, 0.35, 0.0)
+                    self.Visor3dEnlace.addItem(hueco)
+
+            # =========================================================================
+            # D. COVALENTE MOLECULAR ESTÁNDAR / AISLANTE (2 átomos)
+            # =========================================================================
+            else:
+                self.Visor3dEnlace.setCameraPosition(pos=QVector3D(0, 0, 0), distance=20, elevation=90, azimuth=90)
+                d_centro = 1.8
+                pos_a1, pos_a2 = -d_centro, d_centro
+
+                # Núcleos
+                self.dibujarUnAtomo(self.Visor3dEnlace, elemento1, offset_x=pos_a1, solo_nucleo=True)
+                self.dibujarUnAtomo(self.Visor3dEnlace, elemento2, offset_x=pos_a2, solo_nucleo=True)
+
+                # Órbitas traslapadas
+                radio_orbita = 3.0
+                angulos = np.linspace(0, 2 * np.pi, 80)
+                for ox in (pos_a1, pos_a2):
+                    pts_orb = np.column_stack((
+                        ox + radio_orbita * np.cos(angulos),
+                        radio_orbita * np.sin(angulos),
+                        np.zeros(80)
+                    ))
+                    linea = gl.GLLinePlotItem(pos=pts_orb, color=(1, 1, 1, 0.8), width=1.5, mode='line_strip')
+                    self.Visor3dEnlace.addItem(linea)
+
+                # Brillo de solapamiento central
+                lente_enlace = gl.GLMeshItem(
+                    meshdata=self.molde_nube_hd,
+                    color=(0.2, 0.8, 1.0, 0.15),
+                    shader='shaded',
+                    glOptions='additive'
+                )
+                lente_enlace.scale(1.2, 2.0, 1.2)
+                self.Visor3dEnlace.addItem(lente_enlace)
+
+                # Reparto de electrones
+                v1 = getValence(elemento1)
+                v2 = getValence(elemento2)
+                cap1 = 2 if elemento1.symbol in ['H', 'He'] else 8
+                cap2 = 2 if elemento2.symbol in ['H', 'He'] else 8
+
+                faltan1 = cap1 - v1
+                faltan2 = cap2 - v2
+                compartidos = min(faltan1, faltan2, v1, v2)
+                total_enlace = compartidos * 2
+
+                solitarios1 = max(0, v1 - compartidos)
+                solitarios2 = max(0, v2 - compartidos)
+
+                # Electrones compartidos al centro
+                if total_enlace > 0:
+                    y_coords = np.linspace(-0.8, 0.8, total_enlace) if total_enlace > 1 else [0.0]
+                    for y in y_coords:
+                        e_mesh = gl.GLMeshItem(
+                            meshdata=self.molde_electron,
+                            color=(0.2, 1.0, 0.4, 1.0),
+                            shader='shaded',
+                            glOptions='opaque'
+                        )
+                        e_mesh.translate(0.0, y, 0.0)
+                        self.Visor3dEnlace.addItem(e_mesh)
+
+                # Electrones solitarios átomo 1
+                if solitarios1 > 0:
+                    ang_ext1 = np.linspace(np.pi * 0.6, np.pi * 1.4, solitarios1)
+                    for th in ang_ext1:
+                        e_mesh = gl.GLMeshItem(meshdata=self.molde_electron, color=(1.0, 0.9, 0.1, 1.0), shader='shaded')
+                        e_mesh.translate(pos_a1 + radio_orbita * np.cos(th), radio_orbita * np.sin(th), 0.0)
+                        self.Visor3dEnlace.addItem(e_mesh)
+
+                # Electrones solitarios átomo 2
+                if solitarios2 > 0:
+                    ang_ext2 = np.linspace(-np.pi * 0.4, np.pi * 0.4, solitarios2)
+                    for th in ang_ext2:
+                        e_mesh = gl.GLMeshItem(meshdata=self.molde_electron, color=(1.0, 0.9, 0.1, 1.0), shader='shaded')
+                        e_mesh.translate(pos_a2 + radio_orbita * np.cos(th), radio_orbita * np.sin(th), 0.0)
+                        self.Visor3dEnlace.addItem(e_mesh)
 
 
 if __name__ == "__main__":
