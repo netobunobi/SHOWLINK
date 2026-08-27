@@ -1,101 +1,82 @@
-<!-- ========================================== -->
-<!-- ENCABEZADO Y DESCRIPCIÓN GENERAL           -->
-<!-- ========================================== -->
 # ⚛️ ShowLink
 
-**ShowLink** es un software interactivo de escritorio desarrollado en **Python**, **PyQt6** y **OpenGL (`pyqtgraph`)** diseñado para analizar, clasificar y visualizar enlaces químicos y dopajes semiconductores en tiempo real.
+**ShowLink** es una aplicación educativa de escritorio desarrollada en **Python**, **PyQt6** y **OpenGL (`pyqtgraph`)** diseñada para analizar, clasificar y visualizar enlaces químicos y dopajes semiconductores de forma interactiva en 3D.
 
-El proyecto combina un backend físico-químico con una interfaz visual moderna que diagnostica el tipo de enlace, calcula configuraciones electrónicas y proyecta representaciones atómicas en 3D.
+El software calcula configuraciones electrónicas y proyecta cómo interactúan físicamente las capas de valencia mediante simulaciones y modelos tridimensionales.
 
 ---
 
-<!-- ========================================== -->
-<!-- SECCIÓN: LO QUE YA ESTÁ HECHO Y FUNCIONA   -->
-<!-- ========================================== -->
-## 🚀 Estado Actual del Proyecto
+## 🚀 Características del Proyecto
 
-Actualmente, el software cuenta con la arquitectura base de la interfaz gráfica, la lógica de cálculo químico y las pruebas de concepto del motor de renderizado tridimensional.
-
-### 🧠 1. Backend y Lógica Química (Completado)
-* **Procesamiento de entradas:** Validación y normalización de símbolos o nombres de elementos químicos.
-* **Diagnóstico de enlace:** Clasificación automática del tipo de interacción entre dos elementos:
+### 🧠 1. Backend Químico (`backend.py`)
+* **Diagnóstico de enlace:** Clasificación automática entre dos elementos:
   * ⚪ Inerte / Sin enlace (Gases Nobles)
   * 🟡 Enlace Metálico (Conductores)
-  * 🔴 Enlace Iónico (Aislantes en estado sólido)
-  * 🔵 Enlace Covalente / Dopajes Semiconductores (Tipo N, Tipo P, Intrínseco)
+  * 🔴 Enlace Iónico (Transferencia electrónica)
+  * 🔵 Enlace Covalente / Redes Semiconductoras (Intrínseco, Extrínseco Tipo N y Tipo P)
 * **Cálculo atómico:**
-  * Configuración electrónica completa.
-  * Determinación de electrones de valencia.
-  * Conteo exacto de protones y neutrones.
-  * Asignación de paleta de colores por elemento/familia.
+  * Determinación de electrones de valencia y capacidad máxima (dueto/octeto).
+  * Conteo exacto de protones, neutrones y masa atómica mediante `mendeleev`.
+  * Asignación de paleta de colores por familia química.
 
-### 🖥️ 2. Interfaz de Usuario (PyQt6 - Completado)
-* **Diseño visual:** Estilo oscuro profesional (*Dark Theme*) estructurado en paneles divididos.
-* **Selector interactivo:** Ventana modal con la Tabla Periódica completa optimizada para carga instantánea (0 ms).
-* **Panel de diagnóstico:** Desglose detallado del comportamiento eléctrico del enlace y tarjetas de propiedades individuales para cada átomo.
-* **Integración OpenGL:** Contenedor `GLViewWidget` incrustado directamente en la ventana principal.
+### 🎨 2. Motor Gráfico 3D (`frontend.py`)
+* **Vistas Atómicas Separadas:** Inspección individual de cada átomo con sus órbitas, electrones activos y huecos disponibles.
+* **Enlace Metálico:** Nube volumétrica elipsoidal con simulación y rebote continuo del mar de electrones.
+* **Enlace Iónico:** Representación de catión (+) y anión (-) con halos de carga, órbita receptora llena y vectores discontinuos de fuerza electrostática.
+* **Enlace Covalente Molecular:** Traslape de orbitales con lente central compartida y pares de electrones enlazantes.
+* **Semiconductores (Red 3×3):**
+  * *Intrínseco:* Malla cristalina pura con enlaces covalentes completos.
+  * *Extrínseco Tipo N:* Red con átomo dopante central y quinto electrón libre en movimiento.
+  * *Extrínseco Tipo P:* Red con átomo aceptor central y vacancia/hueco en la estructura.
 
-### 🎨 3. Motor Gráfico 3D (Fase Inicial / Prototipo)
-* Renderizado de mallas esféricas sólidas con cálculo de normales y sombreado (`GLMeshItem`).
-* Trazado de órbitas circulares vectorizadas mediante funciones trigonométricas de NumPy y renderizado de líneas continuas (`GLLinePlotItem`).
-* Control de cámara interactivo (rotación, traslación y zoom con ratón).
-
----
-
-<!-- ========================================== -->
-<!-- SECCIÓN: HOJA DE RUTA / LO QUE SE VIENE    -->
-<!-- (Casillas de verificación: [ ] pendiente)  -->
-<!-- ========================================== -->
-## 🛠️ Hoja de Ruta (Roadmap / Próximas Implementaciones)
-
-El desarrollo activo está centrado en la representación física tridimensional de los átomos y sus enlaces:
-
-- [ ] **Distribución Atómica Realista:**
-  - Núcleos generados mediante empaquetamiento esférico (Espiral de Fibonacci 3D) con esferas individuales diferenciadas para protones ($p^+$) y neutrones ($n^0$).
-- [ ] **Electrones y Capas de Valencia:**
-  - Posicionamiento de electrones activos sobre las órbitas.
-  - Representación de huecos disponibles (electrones faltantes para el octeto/dueto).
-- [ ] **Modos de Visualización Dinámicos:**
-  - **Vista Separada:** Doble visor 3D interactivo independiente para inspeccionar ambos átomos por separado.
-  - **Vista de Enlace:** Espacio unificado donde los átomos interactúan según el tipo de enlace (traslape de capas covalentes, transferencia iónica o nube metálica).
-- [ ] **Controles de Perspectiva:**
-  - Alternador de cámara 2D (plana) y 3D (perspectiva).
-  - Simbología flotante en pantalla con guía de colores.
+### 🖥️ 3. Interfaz de Usuario
+* Tema oscuro estructurado en paneles divididos.
+* Tabla Periódica interactiva completa en ventana modal.
+* Control total de cámara OpenGL (rotación, traslación y zoom con el ratón).
 
 ---
 
-<!-- ========================================== -->
-<!-- SECCIÓN: GUÍA DE INSTALACIÓN Y EJECUCIÓN   -->
-<!-- ========================================== -->
-## 📦 Requisitos e Instalación
+## 📦 Instalación y Uso
 
-1. **Clonar el repositorio:**
-   ```bash
-   git clone [https://github.com/tu-usuario/ShowLink.git](https://github.com/tu-usuario/ShowLink.git)
-   cd ShowLink
-   ```
+### Opción 1: Ejecutables directos (Releases)
+Descarga el binario para tu sistema operativo en la pestaña **Releases**:
+* **Linux:** `ShowLink-Linux` (dar permisos con: `chmod +x ShowLink-Linux`)
+* **Windows:** `ShowLink-Windows.exe`
 
-2. **Instalar dependencias necesarias:**
-   ```bash
-   pip install PyQt6 pyqtgraph PyOpenGL numpy
-   ```
+### Opción 2: Correr desde el código fuente
 
-3. **Ejecutar la aplicación:**
-   ```bash
-   python main.py
-   ```
+1. Clonar el repositorio:
+```bash
+git clone [https://github.com/tu-usuario/ShowLink.git](https://github.com/tu-usuario/ShowLink.git)
+cd ShowLink
+```
+
+2. Crear y activar entorno virtual:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # en Linux
+.venv\Scripts\activate     # en Windows
+```
+
+3. Instalar librerías:
+```bash
+pip install -r requirements.txt
+```
+
+4. Ejecutar:
+```bash
+python frontend.py
+```
 
 ---
 
-<!-- ========================================== -->
-<!-- ÁRBOL DE DIRECTORIOS DEL PROYECTO          -->
-<!-- ========================================== -->
-## 🏗️ Estructura del Proyecto
+## 🏗️ Estructura de Archivos
 
 ```text
 ShowLink/
-├── main.py              # Interfaz gráfica (PyQt6) y lógica de presentación
-├── backend.py           # Cálculos químicos, configuraciones y reglas de enlace
-├── SHOWLINK.ico         # Icono de la aplicación
+├── frontend.py          # Interfaz gráfica PyQt6 y renderizado OpenGL 3D
+├── backend.py           # Lógica química, base de datos y clasificación de enlaces
+├── requirements.txt     # Lista de dependencias del entorno
+├── SHOWLINK.png         # Icono y recursos visuales
 └── README.md            # Documentación del proyecto
 ```
