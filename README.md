@@ -6,6 +6,40 @@ El software calcula configuraciones electrónicas y proyecta cómo interactúan 
 
 ---
 
+## 📸 Demostración Visual
+
+### 🧪 Interfaz y Vistas Atómicas
+
+| Selección en Tabla Periódica | Átomos Separados e Inspección |
+| :---: | :---: |
+| ![Tabla Periódica](screenshots/SelecionTablaPeriodica.png) | ![Átomos Separados](screenshots/AtomosSeparados.png) |
+| *Selector modal interactivo de elementos.* | *Visualización de órbitas y capas de valencia.* |
+
+---
+
+### ⚡ Tipos de Enlaces Químicos
+
+| Enlace Metálico | Enlace Iónico |
+| :---: | :---: |
+| ![Enlace Metálico](screenshots/EnlaceMetalico.png) | ![Enlace Iónico](screenshots/ElaceIonico.png) |
+| *Mar de electrones deslocalizados y nube volumétrica.* | *Halos de transferencia electrónica y fuerza electrostática.* |
+
+| Gases Nobles / Inerte |
+| :---: |
+| ![Gas Noble](screenshots/NoEnlaceGasNoble.png) |
+| *Capas completas sin reacción química activa.* |
+
+---
+
+### 🔬 Redes y Semiconductores (Mallas 3×3)
+
+| Intrínseco | Extrínseco Tipo N | Extrínseco Tipo P |
+| :---: | :---: | :---: |
+| ![Intrínseco](screenshots/Intrinseco.png) | ![Tipo N](screenshots/ExtrinsecoN.png) | ![Tipo P](screenshots/ExtrinsecoP.png) |
+| *Malla cristalina pura tetravalente.* | *Dopaje con 5.º electrón libre conductor.* | *Dopaje aceptor con vacancia/hueco en la red.* |
+
+---
+
 ## 🚀 Características del Proyecto
 
 ### 🧠 1. Backend Químico (`backend.py`)
@@ -76,7 +110,16 @@ python frontend.py
 ShowLink/
 ├── frontend.py          # Interfaz gráfica PyQt6 y renderizado OpenGL 3D
 ├── backend.py           # Lógica química, base de datos y clasificación de enlaces
-├── requirements.txt     # Lista de dependencias del entorno
-├── SHOWLINK.png         # Icono y recursos visuales
+├── requirements.txt     # Dependencias del entorno
+├── SHOWLINK.png         # Icono oficial de la aplicación
+├── screenshots/         # Galería de capturas de pantalla de la interfaz
 └── README.md            # Documentación del proyecto
 ```
+
+---
+
+<div align="center">
+  <p>Desarrollado con 💙 en <b>Python</b>, <b>PyQt6</b> y <b>OpenGL</b></p>
+  <p><sub>ShowLink — Proyecto Educativo de Visualización Atómica 3D</sub></p>
+  <p><sub>profe, si ve esto, ya, paro, exenteme XD</sub></p>
+</div>
