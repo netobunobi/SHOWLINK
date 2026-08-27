@@ -1,8 +1,9 @@
 import sys
 import numpy as np
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QColor, QVector3D
+
+# Interfaz gráfica (PyQt6)
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QColor, QIcon, QVector3D
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -15,17 +16,16 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
-    QTabWidget,
 )
 
+# Motor 3D OpenGL
 import pyqtgraph.opengl as gl
+
+# Lógica y base de datos química local
 from backend import *
-
-
-from PyQt6.QtCore import QTimer
-
 
 class DialogoTablaPeriodica(QDialog):
     def __init__(self, parent=None):
