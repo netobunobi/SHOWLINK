@@ -1,7 +1,8 @@
 import sys
 import numpy as np
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtGui import QIcon, QColor, QVector3D
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -21,6 +22,10 @@ from PyQt6.QtWidgets import (
 
 import pyqtgraph.opengl as gl
 from backend import *
+
+
+from PyQt6.QtCore import QTimer
+
 
 class DialogoTablaPeriodica(QDialog):
     def __init__(self, parent=None):
@@ -73,6 +78,14 @@ class VentanaPrincipal(QMainWindow):
         self.molde = gl.MeshData.sphere(rows=10, cols=10, radius=1.5)
 
         self.molde_electron = gl.MeshData.sphere(rows=10, cols=10, radius=0.25)
+
+
+
+        # Estructuras para la animación
+        self.electrones_animados = []
+        self.timer_animacion = QTimer()
+        self.timer_animacion.timeout.connect(self.actualizarMovimientoElectrones)
+        
 
 
         super().__init__()
@@ -438,7 +451,7 @@ class VentanaPrincipal(QMainWindow):
                 "Los gases nobles tienen su capa de valencia completa. No forman enlaces "
                 "químicos estables ni redes conductoras bajo condiciones estándar."
             )
-        elif tipoEnlace == 1:
+        elif tipoEnlace == 2:
             colorEnlace = "#fbbf24"          # Ámbar neón para Metálico
             colorComportamiento = "#fef08a"
             tipoMaterial = "Conductor Eléctrico (Metálico)"
@@ -447,7 +460,7 @@ class VentanaPrincipal(QMainWindow):
                 "Los electrones se mueven con total libertad ante un campo eléctrico, "
                 "presentando una conductividad extremadamente alta."
             )
-        elif tipoEnlace == 2:
+        elif tipoEnlace == 3:
             colorEnlace = "#f87171"          # Coral/Rojo para Iónico
             colorComportamiento = "#fca5a5"
             tipoMaterial = "Aislante Eléctrico (Iónico / Sólido)"
@@ -610,14 +623,51 @@ class VentanaPrincipal(QMainWindow):
 
     def dibujarAtomosSeparados(self, atomo1, atomo2):
         self.Visor3dA1.clear()
+        self.Visor3dA1.setCameraPosition(pos = QVector3D(0, 0, 0),elevation=90, azimuth=60)
         self.Visor3dA2.clear()
+        self.Visor3dA2.setCameraPosition(pos = QVector3D(0, 0, 0), elevation=90, azimuth=30)
 
         self.dibujarUnAtomo(self.Visor3dA1, atomo1, offset_x=0.0)
         self.dibujarUnAtomo(self.Visor3dA2, atomo2, offset_x=0.0)
 
 
+    def actualizarMovimientoElectrones(self):
+        if not self.electrones_animados:
+            return
+
+        pos_n1 = np.array([-3.0, 0.0, 0.0])
+        pos_n2 = np.array([3.0, 0.0, 0.0])
+        r_nucleo = 1.1
+
+        for i, (mesh, pos, vel) in enumerate(self.electrones_animados):
+            # 1. Avanzar según su velocidad
+            pos += vel
+
+            # 2. Rebote en los límites del espacio (Caja 3D)
+            if abs(pos[0]) > 4.8:
+                vel[0] *= -1
+            if abs(pos[1]) > 2.5:
+                vel[1] *= -1
+            if abs(pos[2]) > 2.5:
+                vel[2] *= -1
+
+            # 3. Rebote suave con los núcleos
+            for n_pos in (pos_n1, pos_n2):
+                dist_n = np.linalg.norm(pos - n_pos)
+                if dist_n < r_nucleo:
+                    # Normal del rebote
+                    normal = (pos - n_pos) / dist_n
+                    vel[:] = normal * np.linalg.norm(vel)
+
+            # 4. Aplicar la nueva posición en OpenGL
+            mesh.resetTransform()
+            mesh.translate(pos[0], pos[1], pos[2])
+
+
+
     def dibujarEnlaceAtomos(self, elemento1, elemento2):
         self.Visor3dEnlace.clear()
+        self.Visor3dEnlace.setCameraPosition(pos = QVector3D(0, 0, 0), distance = 20, elevation=90, azimuth=90)
         tipoEnlace, msg = getTypeLink(elemento1, elemento2)
 
         # CASO 1: Gas noble / Sin enlace
@@ -627,7 +677,73 @@ class VentanaPrincipal(QMainWindow):
             
         # CASO 2: Enlace Metálico
         elif tipoEnlace == 2:
-            self.mostrarAlerta("En desarrollo", "El enlace metálico aún no está implementado.")
+            # Detener animación previa y limpiar lista
+            self.timer_animacion.stop()
+            self.electrones_animados.clear()
+
+            # Núcleo 1
+            color1 = QColor(getColor(elemento1))
+            color1Opengl = (color1.redF(), color1.greenF(), color1.blueF(), 1.0)
+            nucleo1 = gl.GLMeshItem(meshdata=self.molde, color=color1Opengl, shader='shaded', glOptions='opaque')
+            nucleo1.translate(-3.0, 0.0, 0.0)
+            self.Visor3dEnlace.addItem(nucleo1)
+
+            # Núcleo 2
+            color2 = QColor(getColor(elemento2))
+            color2Opengl = (color2.redF(), color2.greenF(), color2.blueF(), 1.0)
+            nucleo2 = gl.GLMeshItem(meshdata=self.molde, color=color2Opengl, shader='shaded', glOptions='opaque')
+            nucleo2.translate(3.0, 0.0, 0.0)
+            self.Visor3dEnlace.addItem(nucleo2)
+
+            total_electrones = getValence(elemento1) + getValence(elemento2)
+
+            pos_nucleo1 = np.array([-3.0, 0.0, 0.0])
+            pos_nucleo2 = np.array([3.0, 0.0, 0.0])
+            posiciones_ocupadas = []
+
+            for _ in range(total_electrones):
+                intentos = 0
+                while intentos < 100:
+                    intentos += 1
+                    candidato = np.array([
+                        np.random.uniform(-4.5, 4.5),
+                        np.random.uniform(-2.2, 2.2),
+                        np.random.uniform(-2.2, 2.2)
+                    ])
+
+                    if np.linalg.norm(candidato - pos_nucleo1) < 1.3:
+                        continue
+                    if np.linalg.norm(candidato - pos_nucleo2) < 1.3:
+                        continue
+                    if any(np.linalg.norm(candidato - p) < 0.65 for p in posiciones_ocupadas):
+                        continue
+
+                    posiciones_ocupadas.append(candidato)
+                    break
+
+            # Instanciar y asignar vector de velocidad suave
+            velocidad_escalar = 0.035  # Ajusta este valor para más/menos velocidad
+
+            for pos in posiciones_ocupadas:
+                e_mesh = gl.GLMeshItem(
+                    meshdata=self.molde_electron,
+                    color=(1.0, 0.9, 0.1, 1.0),
+                    shader='shaded',
+                    glOptions='opaque'
+                )
+                e_mesh.translate(pos[0], pos[1], pos[2])
+                self.Visor3dEnlace.addItem(e_mesh)
+
+                # Dirección aleatoria normalizada
+                direccion = np.random.uniform(-1.0, 1.0, 3)
+                direccion /= np.linalg.norm(direccion)
+                vel = direccion * velocidad_escalar
+
+                self.electrones_animados.append((e_mesh, pos, vel))
+
+            # Iniciar el ciclo de animación a ~33 FPS (cada 30 ms)
+            self.timer_animacion.start(30)
+    
             
         # CASO 3: Enlace Iónico
         elif tipoEnlace == 3:
