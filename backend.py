@@ -14,6 +14,8 @@ METALS = {
 
 
 
+# ==================== DATOS ESTÁTICOS DE LA TABLA (0 SEGUNDOS DE CARGA) ====================
+#porque doña libreria tarda un choooooorrro y no me guta, mejor tener los datos asi XD
 #papus colores para papus atomos
 DATOS_TABLA = [
     (1, 'H', '#FFFFFF', 1, 1), (2, 'He', '#D9FFFF', 1, 18),
@@ -185,22 +187,24 @@ def getProtons(entryElemnt):
     return entryElemnt.protons
 
 def getValence(entryElement):
-    # Grupo 1 y 2
+    # CASO ESPECIAL: Helio (Grupo 18 pero solo tiene 2 e-)
+    if entryElement.symbol == 'He':
+        return 2
+
+    # Grupo 1 y 2 (incluye Hidrógeno)
     if entryElement.group_id in [1, 2]:
         return entryElement.group_id
     
-    # Metales de transición (Grupos 3 al 12): La gran mayoría tiene 2 en su capa más externa (4s2, 5s2, etc.)
+    # Metales de transición (Grupos 3 al 12)
     elif 3 <= entryElement.group_id <= 12:
-        # Casos especiales con 1 electrón s (como Cu, Cr, Ag, Au)
         if entryElement.symbol in ['Cr', 'Cu', 'Nb', 'Mo', 'Ru', 'Rh', 'Pd', 'Ag', 'Pt', 'Au']:
             return 1
         return 2
     
-    # Bloque p (Grupos 13 al 18): Grupo - 10 (ej. Grupo 14 = 4 electrones, Grupo 16 = 6 electrones)
+    # Bloque p (Grupos 13 al 18: Ne, Ar, Kr, Xe, Rn = 8)
     elif 13 <= entryElement.group_id <= 18:
         return entryElement.group_id - 10
     
-    # Lantánidos / Actínidos
     return 2
 
 def getNeutrons(entryElement):

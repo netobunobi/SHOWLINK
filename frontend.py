@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QColor
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -16,13 +16,11 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+    QTabWidget,
 )
 
 import pyqtgraph.opengl as gl
 from backend import *
-
-# ==================== DATOS ESTÁTICOS DE LA TABLA (0 SEGUNDOS DE CARGA) ====================
-#porque doña libreria tarda un choooooorrro y no me guta, mejor tener los datos asi XD
 
 class DialogoTablaPeriodica(QDialog):
     def __init__(self, parent=None):
@@ -69,6 +67,14 @@ class DialogoTablaPeriodica(QDialog):
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
+
+        
+        #creamos el molde de las esferas pa no peliar despues con recursos
+        self.molde = gl.MeshData.sphere(rows=10, cols=10, radius=1.5)
+
+        self.molde_electron = gl.MeshData.sphere(rows=10, cols=10, radius=0.25)
+
+
         super().__init__()
         self.setWindowTitle("ShowLink")
         self.resize(1100, 750)
@@ -93,34 +99,108 @@ class VentanaPrincipal(QMainWindow):
             border-radius: 8px;
         """)
 
-
-        #----------------- VISOR 3d -----------------
-        layoutVisor3D = QVBoxLayout(self.panelIzquierdo)
-        layoutVisor3D.setContentsMargins(0,0,0,0)
-
-        visor3D = gl.GLViewWidget()
-        layoutVisor3D.addWidget(visor3D)
-
-        visor3D.setBackgroundColor("#000000")
-
-        molde_esfera = gl.MeshData.sphere(rows=20, cols=20, radius=0.9)
-        objeto_visible = gl.GLMeshItem(meshdata=molde_esfera ,color=(1.0, 0.0, 0.0, 1.0), shader='shaded', smooth=False ,drawEdges=False, edgeColor=(1.0, 1.0, 1.0, 0.5),glOptions='opaque'
-        )
-
-        visor3D.addItem(objeto_visible)
+        layoutPanelIzquierdo = QVBoxLayout(self.panelIzquierdo)
+        layoutPanelIzquierdo.setContentsMargins(0,0,0,0)
+        layoutPanelIzquierdo.setSpacing(0)
 
 
-        angulos = np.linspace(0, 2 * np.pi, 60)
-        radio = 2.0
-        eje_x = radio * np.cos(angulos)
-        eje_y = radio * np.sin(angulos)
-        eje_z = np.zeros(60)
-        puntos_matriz = np.column_stack((eje_x, eje_y, eje_z))
+        #----------------- pestañas, visor 3d -----------------
+        
+        self.pestañasVisor = QTabWidget()
+        layoutPanelIzquierdo.addWidget(self.pestañasVisor)
 
-        orbita = gl.GLLinePlotItem(pos=puntos_matriz, mode='line_strip', glOptions='opaque')
-        visor3D.addItem(orbita) 
+        self.pestañasVisor.setStyleSheet("""
+            QTabWidget::pane {
+                border: 2px solid #38bdf8;
+                border-radius: 8px;
+                background-color: #000000;
+                top: -1px; /* Hace que encaje perfecto con la barra */
+            }
+            QTabBar::tab {
+                background-color: #1e293b;
+                color: #94a3b8;
+                border: 1.5px solid #334155;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                padding: 10px 24px;
+                font-size: 11pt;
+                font-weight: bold;
+                min-width: 140px;
+                margin-right: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: #0f172a;
+                color: #38bdf8;
+                border: 2px solid #38bdf8;
+                border-bottom: 2px solid #000000; /* Se funde con el fondo del visor */
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #334155;
+                color: #f8fafc;
+            }
+        """)
 
-                  
+
+
+        # ----------------------PESTAÑA DE ENLACE---------------
+
+        self.Visor3dEnlace = gl.GLViewWidget()
+
+        self.pestañasVisor.addTab(self.Visor3dEnlace, "🔗 ENLACE INTERACTIVO")
+
+
+        # ----------------------PESTAÑA ATOMOS SEPARADOS---------------
+        # ---------------------- PESTAÑA ÁTOMOS SEPARADOS ----------------------
+        self.panelPadreVisor = QWidget()
+        layoutPanelVisorPrincipal = QVBoxLayout(self.panelPadreVisor)
+        layoutPanelVisorPrincipal.setContentsMargins(12, 12, 12, 12)
+        layoutPanelVisorPrincipal.setSpacing(8)
+
+        # 1. Barra de Simbología / Leyenda (Flotante arriba de los visores)
+        barraLeyenda = QWidget()
+        barraLeyenda.setStyleSheet("""
+            background-color: rgba(15, 23, 42, 0.85);
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 4px;
+        """)
+        layoutLeyenda = QHBoxLayout(barraLeyenda)
+        layoutLeyenda.setContentsMargins(10, 4, 10, 4)
+        layoutLeyenda.setSpacing(20)
+
+        lblElec = QLabel("🟡 Electrón de Valencia")
+        lblElec.setStyleSheet("color: #fef08a; font-weight: bold; font-size: 9.5pt; border: none; background: transparent;")
+
+        lblHueco = QLabel("🔴 Hueco / Vacancia")
+        lblHueco.setStyleSheet("color: #f87171; font-weight: bold; font-size: 9.5pt; border: none; background: transparent;")
+
+        layoutLeyenda.addStretch()
+        layoutLeyenda.addWidget(lblElec)
+        layoutLeyenda.addWidget(lblHueco)
+        layoutLeyenda.addStretch()
+
+        # 2. Contenedor de los dos visores 3D
+        contenedorVisores = QWidget()
+        contenedorVisores.setStyleSheet("border: none; background: transparent;")
+        layoutVisores = QHBoxLayout(contenedorVisores)
+        layoutVisores.setContentsMargins(0, 0, 0, 0)
+        layoutVisores.setSpacing(8)
+
+        self.Visor3dA1 = gl.GLViewWidget()
+        self.Visor3dA2 = gl.GLViewWidget()
+
+        layoutVisores.addWidget(self.Visor3dA1)
+        layoutVisores.addWidget(self.Visor3dA2)
+
+        # 3. Ensamblar todo en la pestaña
+        layoutPanelVisorPrincipal.addWidget(barraLeyenda)
+        layoutPanelVisorPrincipal.addWidget(contenedorVisores, 1)
+
+        self.pestañasVisor.addTab(self.panelPadreVisor, "⚛️ ÁTOMOS SEPARADOS")
+
+
+
         # ----------------- PANEL DERECHO -----------------
         self.panelDerecho = QWidget()
         self.panelDerecho.setStyleSheet("""
@@ -349,8 +429,8 @@ class VentanaPrincipal(QMainWindow):
         # Diagnóstico y Asignación de Textos/Colores
         tipoEnlace, msgEnlace = getTypeLink(element1, element2)
         
-        # Si tipoEnlace == 0 representa "Sin enlace / Gas Noble"
-        if tipoEnlace == 0 or element1.group_id == 18 or element2.group_id == 18:
+        # Si tipoEnlace == 1 representa "Sin enlace / Gas Noble"
+        if tipoEnlace == 1 or element1.group_id == 18 or element2.group_id == 18:
             colorEnlace = "#94a3b8"          # Gris / Neutro
             colorComportamiento = "#cbd5e1"
             tipoMaterial = "Inerte / No Conductor (Gas Noble)"
@@ -428,6 +508,10 @@ class VentanaPrincipal(QMainWindow):
         self.lblConfigElem2.setStyleSheet(f"color: {color2}; font-size: 10.5pt; font-weight: 500; border: none;")
         self.lblDatosElem2.setStyleSheet(f"color: {color2}; font-size: 10pt; border: none;")
 
+        self.dibujarAtomosSeparados(element1, element2)
+        self.dibujarEnlaceAtomos(element1, element2)
+
+
     def mostrarAlerta(self, titulo, mensaje):
         msg = QMessageBox(self)
         msg.setWindowTitle(titulo)
@@ -463,6 +547,96 @@ class VentanaPrincipal(QMainWindow):
             simbolo = dialogo.elemento_seleccionado
             if simbolo:
                 input_destino.setText(simbolo)
+
+
+    def dibujarUnAtomo(self, visor, atomo, offset_x=0.0):
+        radio_orbita = 3
+        angulos_orbita = np.linspace(0, 2 * np.pi, 80)
+        puntos_orbita = np.column_stack((
+            offset_x + radio_orbita * np.cos(angulos_orbita),
+            radio_orbita * np.sin(angulos_orbita),
+            np.zeros(80)
+        ))
+
+        # Órbita
+        linea_orbita = gl.GLLinePlotItem(
+            pos=puntos_orbita,
+            color=(1, 1, 1, 1),
+            width=1.5,
+            mode='line_strip',
+            glOptions='opaque'
+        )
+        visor.addItem(linea_orbita)
+
+        # Núcleo
+        color = QColor(getColor(atomo))
+        colorOpengl = (color.redF(), color.greenF(), color.blueF(), 1.0)
+        esferaAtomo = gl.GLMeshItem(
+            meshdata=self.molde,
+            color=colorOpengl,
+            shader='shaded',
+            glOptions='opaque'
+        )
+        esferaAtomo.translate(offset_x, 0.0, 0.0)
+        visor.addItem(esferaAtomo)
+
+        # Electrones y Huecos
+        capacidad = 2 if atomo.symbol in ['H', 'He'] else 8
+        posiciones = np.linspace(0, 2 * np.pi, capacidad, endpoint=False)
+        valencia = getValence(atomo)
+
+        for i, theta in enumerate(posiciones):
+            ex = offset_x + radio_orbita * np.cos(theta)
+            ey = radio_orbita * np.sin(theta)
+            ez = 0.0
+
+            if i < valencia:
+                e_mesh = gl.GLMeshItem(
+                    meshdata=self.molde_electron,
+                    color=(1.0, 0.9, 0.1, 1.0),
+                    shader='shaded',
+                    glOptions='opaque'
+                )
+            else:
+                e_mesh = gl.GLMeshItem(
+                    meshdata=self.molde_electron,
+                    color=(0.95, 0.2, 0.2, 0.55),
+                    shader='shaded',
+                    glOptions='translucent'
+                )
+
+            e_mesh.translate(ex, ey, ez)
+            visor.addItem(e_mesh)
+
+    def dibujarAtomosSeparados(self, atomo1, atomo2):
+        self.Visor3dA1.clear()
+        self.Visor3dA2.clear()
+
+        self.dibujarUnAtomo(self.Visor3dA1, atomo1, offset_x=0.0)
+        self.dibujarUnAtomo(self.Visor3dA2, atomo2, offset_x=0.0)
+
+
+    def dibujarEnlaceAtomos(self, elemento1, elemento2):
+        self.Visor3dEnlace.clear()
+        tipoEnlace, msg = getTypeLink(elemento1, elemento2)
+
+        # CASO 1: Gas noble / Sin enlace
+        if tipoEnlace == 1:
+            self.dibujarUnAtomo(self.Visor3dEnlace, elemento1, offset_x=-3.5)
+            self.dibujarUnAtomo(self.Visor3dEnlace, elemento2, offset_x=3.5)
+            
+        # CASO 2: Enlace Metálico
+        elif tipoEnlace == 2:
+            self.mostrarAlerta("En desarrollo", "El enlace metálico aún no está implementado.")
+            
+        # CASO 3: Enlace Iónico
+        elif tipoEnlace == 3:
+            self.mostrarAlerta("En desarrollo", "El enlace iónico aún no está implementado.")
+            
+        # CASO 4: Enlace Covalente
+        elif tipoEnlace == 4:
+            self.mostrarAlerta("En desarrollo", "El enlace covalente aún no está implementado.")
+
 
 if __name__ == "__main__":
 
